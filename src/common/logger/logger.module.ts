@@ -2,7 +2,7 @@ import { DynamicModule, FactoryProvider, Global, Module } from '@nestjs/common';
 import { LoggerService } from './logger.service';
 import { LoggerOptions } from 'winston';
 import { getLoggerContexts, getLoggerToken } from './logger.decorator';
-import { NESTJS_WINSTON_CONFIG_OPTIONS } from './logger.constant';
+import { NESTJS_WINSTON_CONFIG_OPTIONS } from '../constants/logger.constant';
 
 @Global()
 @Module({})
