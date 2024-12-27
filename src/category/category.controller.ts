@@ -13,6 +13,7 @@ import { CreateCategoryRequest } from './dto/request/CreateCategory.dto';
 import { AllowRoles } from 'src/common/helpers/decorators/role.decorator';
 import { Roles } from 'src/common/interface/auth/enum/Roles';
 import { Request } from 'express';
+import { RoleGuard } from 'src/common/helpers/guards/role.guard';
 @UseGuards(AccessTokenGuard)
 @ApiBearerAuth('accessToken')
 @Controller('category')
@@ -20,8 +21,8 @@ export class CategoryController {
   constructor(private readonly categoryService: CategoryService) {}
 
   @ApiBearerAuth('accessToken')
-  @UseGuards(AccessTokenGuard)
-  //@AllowRoles([Roles.ADMIN, Roles.AGENT])
+  @UseGuards(AccessTokenGuard, RoleGuard)
+  @AllowRoles([Roles.ADMIN, Roles.AGENT])
   @Post('new')
   async createCategory(
     @Req() request: Request,
