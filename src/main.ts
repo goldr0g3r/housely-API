@@ -16,7 +16,7 @@ async function bootstrap() {
     type: VersioningType.URI,
   });
   app.setGlobalPrefix('api');
-  app.useGlobalPipes(new ValidationPipe());
+  app.useGlobalPipes(new ValidationPipe({ transform: true }));
   const environment = app.get(ConfigService).get<Environment>(envToken);
 
   const logger = await app.resolve(LoggerService);

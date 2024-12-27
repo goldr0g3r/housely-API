@@ -11,6 +11,10 @@ import { dbConnection } from './common/constants/mongo.constant';
 import { envToken } from './common/config/environment/env.const';
 import { UserModule } from './user/user.module';
 import { AuthModule } from './auth/auth.module';
+import { CategoryModule } from './category/category.module';
+import { APP_GUARD } from '@nestjs/core';
+import { AccessTokenGuard } from './common/helpers/guards/accessToken.guard';
+import { AuthGuard } from '@nestjs/passport';
 
 @Module({
   imports: [
@@ -34,8 +38,23 @@ import { AuthModule } from './auth/auth.module';
         },
       }),
     }),
+    MongooseModule.forRootAsync({
+      connectionName: dbConnection.category,
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => ({
+        uri: configService.get<Environment>(envToken).mongoUri,
+        dbName: configService.get<Environment>(envToken).categoryDb,
+        retryWrites: true,
+        retryAttempts: 5,
+        writeConcern: {
+          w: 'majority',
+          wtimeout: 1000,
+        },
+      }),
+    }),
     UserModule,
     AuthModule,
+    CategoryModule,
   ],
   controllers: [AppController],
   providers: [AppService],

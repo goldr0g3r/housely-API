@@ -1,4 +1,3 @@
-import { validate } from './../../node_modules/@types/uuid/index.d';
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { InjectLogger } from 'src/common/logger/logger.decorator';
@@ -19,6 +18,9 @@ import { IUserSessionDevice } from 'src/common/interface/user/base';
 import { TREFRESH_TOKEN } from 'src/common/types';
 import UserSessionResponse from './dto/response/userSession.response';
 import { UserResponse } from './entity/user.response';
+import { UserRolesResponse } from './dto/response/userRoles.dto';
+import { DefaultRoles } from 'src/common/interface/auth/enum/Roles';
+import { use } from 'passport';
 
 @Injectable()
 export class UserRepository {
@@ -36,7 +38,7 @@ export class UserRepository {
     user.password = hash.hash;
     user.salt = hash.salt;
     const response = await user.save();
-    return response;
+    return await this.toUserResponseModel(response);
   }
 
   async validateUser(request: ILoginUserRequest): Promise<UserResponse | null> {
@@ -52,7 +54,8 @@ export class UserRepository {
       if (!isValid) {
         return null;
       }
-      return this.toUseResponseModel(user);
+      const res = await this.toUserResponseModel(user);
+      return res;
     } catch (error) {
       this.logger.error(error.message, error.stack);
       return null;
@@ -65,10 +68,48 @@ export class UserRepository {
       if (!user) {
         return null;
       }
-      return this.toUseResponseModel(user);
+      const res = this.toUserResponseModel(user);
+      return res;
     } catch (error) {
       this.logger.error(error.message, error.stack);
       return null;
+    }
+  }
+
+  async getUserSession(userId: UUID): Promise<UserSessionResponse> {
+    try {
+      const user = await this.userModel.findOne({ id: userId });
+      if (!user) {
+        return this.toUserSessionModel(undefined, false, 'User not found');
+      }
+      const session = user.session;
+      if (!session) {
+        return this.toUserSessionModel(undefined, false, 'Session not found');
+      }
+      return this.toUserSessionModel(user, true, 'Session found');
+    } catch (error) {
+      this.logger.error(error.message, error.stack);
+      return this.toUserSessionModel(undefined, false, 'An Error Occurred');
+    }
+  }
+
+  async verifyRefreshToken(
+    userId: UUID,
+    refreshToken: TREFRESH_TOKEN,
+  ): Promise<boolean> {
+    try {
+      const user = await this.userModel.findOne({ id: userId });
+      if (!user) return false;
+
+      const isRefreshTokenValid = user.session.find(
+        (session) => session.refreshToken === refreshToken,
+      );
+
+      return !!isRefreshTokenValid;
+    } catch (error) {
+      this.logger.log(error);
+
+      return false;
     }
   }
 
@@ -78,7 +119,8 @@ export class UserRepository {
       if (!user) {
         return null;
       }
-      return this.toUseResponseModel(user);
+      const res = await this.toUserResponseModel(user);
+      return res;
     } catch (error) {
       this.logger.error(error.message, error.stack);
       return null;
@@ -139,31 +181,60 @@ export class UserRepository {
 
   async logoutDevice(
     userId: UUID,
-    deviceId: UUID,
-  ): Promise<UserSessionResponse> {
+    refreshToken: TREFRESH_TOKEN,
+  ): Promise<boolean> {
     try {
       const user = await this.userModel.findOne({ id: userId });
-      if (!user)
-        return this.toUserSessionModel(
-          undefined,
-          false,
-          "This user doesn't exist",
-        );
+      if (!user) return false;
 
-      user.session = user.session.filter(
-        (session) => session.deviceId !== deviceId,
-      );
-      await user.save();
+      user.session = user.session.map((session) => {
+        if (session.refreshToken === refreshToken) {
+          session.refreshToken = undefined;
+        }
+        return session;
+      });
+      user.save();
 
-      return this.toUserSessionModel(user, true, 'Device removed successfully');
+      return true;
     } catch (error) {
       this.logger.log(error);
 
-      return this.toUserSessionModel(undefined, false, 'An Error Occurred');
+      return false;
     }
   }
 
-  private toUseResponseModel(user: UserSchema) {
+  async getUserRoles(userId: UUID): Promise<UserRolesResponse | null> {
+    try {
+      const user = await this.userModel.findOne({ id: userId });
+      if (!user) {
+        return null;
+      }
+      return this.toUserRolesModel(user);
+    } catch (error) {
+      this.logger.error(error.message, error.stack);
+      return null;
+    }
+  }
+
+  async updateUserToAgent(userId: UUID): Promise<boolean> {
+    try {
+      const user = await this.userModel.findOne({ id: userId });
+      if (!user) {
+        return false;
+      }
+      user.isAgent = true;
+      DefaultRoles.agent.forEach((role) => {
+        user.roles.push(role);
+      });
+      await user.save();
+      return true;
+    } catch (error) {
+      this.logger.error(error.message, error.stack);
+      return false;
+    }
+  }
+
+  private toUserResponseModel(user: UserSchema) {
     return plainToClass(UserResponse, user, { excludeExtraneousValues: true });
   }
 
@@ -179,5 +250,10 @@ export class UserRepository {
         excludeExtraneousValues: true,
       },
     );
+  }
+  private toUserRolesModel(user: UserSchema) {
+    return plainToClass(UserRolesResponse, user, {
+      excludeExtraneousValues: true,
+    });
   }
 }

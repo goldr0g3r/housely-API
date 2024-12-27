@@ -1,3 +1,4 @@
+import { DefaultRoles } from './../../common/interface/auth/enum/Roles';
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { UUID } from 'crypto';
 import { IUserSession, IUser } from 'src/common/interface/user/base';
@@ -6,6 +7,7 @@ import {
   UserSessionDeviceSchema,
   UserSessionDeviceSchemaObject,
 } from './userSession.schema';
+import { Roles } from 'src/common/interface/auth/enum/Roles';
 
 @Schema({ timestamps: true })
 export class UserSchema implements IUser, IUserSession {
@@ -36,8 +38,8 @@ export class UserSchema implements IUser, IUserSession {
   @Prop()
   address?: string;
 
-  @Prop({ required: true, default: [] })
-  roles: string[];
+  @Prop({ required: true, default: DefaultRoles.buyer, type: [String] })
+  roles: Roles[];
 
   @Prop({ required: true, default: false })
   isActive: boolean;

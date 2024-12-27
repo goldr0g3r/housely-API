@@ -4,7 +4,6 @@ import {
   TokenTypeEnum,
   TREFRESH_TOKEN,
 } from './../common/types/index';
-import { plainToClass, Type } from 'class-transformer';
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { UUID } from 'crypto';
@@ -19,17 +18,11 @@ import {
   IRegisterUserRequest,
 } from 'src/common/interface/user/request';
 import { InjectLogger } from 'src/common/logger/logger.decorator';
-import {
-  UserResponse,
-  UserResponseWithTokens,
-} from 'src/user/entity/user.response';
 import { UserRepository } from 'src/user/user.repository';
 import { ConfigService } from '@nestjs/config';
 import { Environment } from 'src/common/config/environment/env.config';
 import { envToken } from 'src/common/config/environment/env.const';
 import * as DeviceDetector from 'device-detector-js';
-import { comparePassword } from 'src/common/helpers/utils/password.util';
-import { UserSchema } from 'src/user/schema/user.schema';
 
 @Injectable()
 export class AuthService {
@@ -104,7 +97,6 @@ export class AuthService {
 
       const tokens = await this.getTokens(user.id, user.email);
       if (isNull(tokens) || !tokens) return null;
-
       let deviceDetails: DeviceDetector.DeviceDetectorResult | undefined;
       if (userAgent) deviceDetails = this.deviceDetector.parse(userAgent);
 
@@ -138,10 +130,23 @@ export class AuthService {
     }
   }
 
-  async logoutAccount(userId: UUID, deviceId: UUID): Promise<boolean> {
+  async logoutAccount(
+    userId: UUID,
+    refreshToken: TREFRESH_TOKEN,
+  ): Promise<boolean> {
     try {
-      const status = await this.userRepo.logoutDevice(userId, deviceId);
-      if (!status || isNull(status) || !status.status) return false;
+      if (!userId || !refreshToken) {
+        this.logger.error('Invalid User Id or token');
+        throw new UnauthorizedException(
+          'Something went wrong while logging out!',
+        );
+      }
+      const status = await this.userRepo.logoutDevice(userId, refreshToken);
+      console.log(status);
+      if (!status)
+        throw new UnauthorizedException(
+          'Something went wrong while logging out!',
+        );
 
       return true;
     } catch (error) {
@@ -187,6 +192,33 @@ export class AuthService {
         accessToken,
         refreshToken,
       };
+    } catch (error) {
+      this.logger.error(error.toString());
+      return null;
+    }
+  }
+
+  async verifyRefreshTokenInDatabase(
+    userId: UUID,
+    refreshToken: TREFRESH_TOKEN,
+  ): Promise<boolean> {
+    const verify = await this.verifyRefreshToken(refreshToken);
+    if (!verify) return false;
+
+    return await this.userRepo.verifyRefreshToken(userId, refreshToken);
+  }
+  private async verifyRefreshToken(token: TREFRESH_TOKEN) {
+    return this.jwtService.verifyAsync<IRefreshToken>(token, {
+      secret: this.configService.get<Environment>(envToken).refreshTokenSecret,
+    });
+  }
+
+  async profile(userId: UUID) {
+    try {
+      console.log(userId);
+      const user = await this.userRepo.getUserById(userId);
+      if (isNull(user) || !user) return null;
+      return user;
     } catch (error) {
       this.logger.error(error.toString());
       return null;

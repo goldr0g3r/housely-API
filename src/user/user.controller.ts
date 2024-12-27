@@ -1,9 +1,10 @@
-import { validate } from './../../node_modules/@types/uuid/index.d';
-import { Body, Controller, Post } from '@nestjs/common';
+import { Controller, Post, Req, UseGuards } from '@nestjs/common';
 import { UserService } from './user.service';
 import { UserRepository } from './user.repository';
-import { RegisterAccountDto } from './dto/request/RegisterAccount.dto';
-import { LoginAcccountDto } from './dto/request/LoginAccount.dto';
+import { Request } from 'express';
+import { UUID } from 'crypto';
+import { AccessTokenGuard } from 'src/common/helpers/guards/accessToken.guard';
+import { ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 
 @Controller('user')
 export class UserController {
@@ -12,13 +13,14 @@ export class UserController {
     private readonly userRepo: UserRepository,
   ) {}
 
-  @Post('register')
-  async createUser(@Body() request: RegisterAccountDto) {
-    return await this.userRepo.createUser(request);
-  }
-
-  @Post('login')
-  async loginUser(@Body() request: LoginAcccountDto) {
-    return await this.userRepo.validateUser(request);
+  @UseGuards(AccessTokenGuard)
+  @ApiBearerAuth('accessToken')
+  @ApiOperation({ summary: 'Become an agent' })
+  @Post('agent')
+  async becomeAgent(@Req() request: Request) {
+    const res = await this.userRepo.updateUserToAgent(
+      request.user['userId'] as UUID,
+    );
+    return res;
   }
 }
